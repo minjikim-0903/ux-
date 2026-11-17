@@ -1,36 +1,28 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 머뭇 (MVP)
 
-## Getting Started
+가입·결제 플로우 URL을 넣으면 유저가 어디서, 왜 망설이는지 행동심리 기준으로 진단해요.
 
-First, run the development server:
+## 실행
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.local.example .env.local   # ANTHROPIC_API_KEY 채우기
+npm install
+npm run dev                        # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+API 키 없이 화면만 보려면 "예시 보기"를 누르세요.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 구조
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| 파일 | 역할 |
+|---|---|
+| `src/lib/extract.ts` | URL의 HTML을 가져와 버튼, 입력 필드, 가격, 키워드, 본문을 뽑아요 |
+| `src/lib/rubric.ts` | 행동심리 패턴 10개와 판단 기준. 진단 품질은 이 파일이 결정해요 |
+| `src/lib/schema.ts` | 리포트 형식 (AI가 이 형식대로 답해요) |
+| `src/app/api/diagnose/route.ts` | 페이지 수집 → Claude 진단 → 리포트 반환 |
+| `src/app/page.tsx` | 입력 화면과 리포트 화면 |
 
-## Learn More
+## 알려진 한계
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- 자바스크립트로 그려지는 페이지(React SPA 등)는 내용을 거의 못 읽어요. 리포트의 "이번 진단의 한계"에 표시돼요. 다음 단계에서 헤드리스 브라우저(Playwright)로 바꿀 예정이에요.
+- 로그인이 필요한 페이지는 읽을 수 없어요.
