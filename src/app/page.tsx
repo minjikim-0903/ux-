@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Report } from "@/lib/schema";
 import { SAMPLE_REPORT } from "@/lib/sample";
 
@@ -68,9 +68,59 @@ function SampleScreen() {
   );
 }
 
-function ReasonCard({ r }: { r: Report["reasons"][number] }) {
+/** API가 돌려주는 단계별 스크린샷과 요소 위치 (px, 스크린샷 기준) */
+type Shot = {
+  image: string;
+  width: number;
+  height: number;
+  elements: { id: string; x: number; y: number; w: number; h: number }[];
+};
+
+const pct = (v: number, total: number) => `${(v / total) * 100}%`;
+
+/** 실제 스크린샷 위에 문제 위치(박스 + 번호 핀)를 그려요. */
+function ShotView({
+  shot, reasons, active, scrollRef,
+}: {
+  shot: Shot;
+  reasons: Report["reasons"];
+  active: number | null;
+  scrollRef: React.RefObject<HTMLDivElement | null>;
+}) {
   return (
-    <article className="reason">
+    <figure className="screen">
+      <div className="shot-scroll" ref={scrollRef}>
+        <div className="shot" style={{ aspectRatio: `${shot.width} / ${shot.height}` }}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- 서버가 만든 data URL 스크린샷이라 next/image 최적화 대상이 아니에요 */}
+          <img src={shot.image} alt="진단한 페이지 스크린샷" />
+          {reasons.map((r) => {
+            const el = shot.elements.find((e) => e.id === r.element_id);
+            if (!el) return null;
+            return (
+              <div key={r.rank} className={`mark${active === r.rank ? " on" : ""}`}>
+                <div
+                  className="mark-box"
+                  style={{ left: pct(el.x, shot.width), top: pct(el.y, shot.height), width: pct(el.w, shot.width), height: pct(el.h, shot.height) }}
+                />
+                <span className="pin" style={{ left: pct(el.x, shot.width), top: pct(el.y, shot.height) }}>{r.rank}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </figure>
+  );
+}
+
+function ReasonCard({
+  r, active, onLocate,
+}: {
+  r: Report["reasons"][number];
+  active?: boolean;
+  onLocate?: () => void;
+}) {
+  return (
+    <article className={`reason${active ? " on" : ""}`}>
       <header className="r-head">
         <span className="rank">{r.rank}</span>
         <div className="tags">
@@ -78,6 +128,7 @@ function ReasonCard({ r }: { r: Report["reasons"][number] }) {
           {r.principles.map((p) => <span key={p} className="tag">{p}</span>)}
           <span className={`tag c-${r.confidence}`}>{CONF_TEXT[r.confidence]}</span>
         </div>
+        {onLocate && <button type="button" className="locate" onClick={onLocate}>화면에서 보기</button>}
       </header>
       <ol className="chain">
         {CHAIN.map((c) => (
@@ -91,7 +142,34 @@ function ReasonCard({ r }: { r: Report["reasons"][number] }) {
   );
 }
 
-function ReportView({ report, isSample }: { report: Report; isSample: boolean }) {
+function ReportView({ report, isSample, shots = [] }: { report: Report; isSample: boolean; shots?: (Shot | null)[] }) {
+  const firstStep = report.reasons.find((r) => shots[r.step_index - 1])?.step_index ?? shots.findIndex(Boolean) + 1;
+  const [step, setStep] = useState(Math.max(firstStep, 1));
+  const [active, setActive] = useState<number | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const shot = shots[step - 1] ?? null;
+  const hasShots = shots.some(Boolean);
+
+  function locate(r: Report["reasons"][number]) {
+    setStep(r.step_index);
+    setActive(r.rank);
+    const target = shots[r.step_index - 1];
+    const el = target?.elements.find((e) => e.id === r.element_id);
+    const box = scrollRef.current;
+    if (!el || !target) return;
+    // 데스크톱: 스크린샷 칸 안에서 해당 요소로 스크롤. 모바일: 스크린샷이 보이게 페이지 스크롤.
+    requestAnimationFrame(() => {
+      if (!box) return;
+      if (box.scrollHeight > box.clientHeight + 1) {
+        box.scrollTo({ top: (el.y / target.height) * box.scrollHeight - box.clientHeight / 3, behavior: "smooth" });
+      } else {
+        box.querySelector(".mark.on .pin")?.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    });
+  }
+
+  const pinned = (r: Report["reasons"][number]) => Boolean(shots[r.step_index - 1]?.elements.some((e) => e.id === r.element_id));
+
   return (
     <section className="report" aria-label={isSample ? "예시 리포트" : "진단 리포트"}>
       <div className="verdict">
@@ -111,10 +189,45 @@ function ReportView({ report, isSample }: { report: Report; isSample: boolean })
         </div>
       )}
 
-      <div className={isSample ? "report-grid" : "report-list"}>
+      <div className={isSample || hasShots ? "report-grid" : "report-list"}>
         {isSample && <div className="screen-col"><SampleScreen /></div>}
+        {!isSample && hasShots && (
+          <div className="screen-col">
+            {shots.filter(Boolean).length > 1 && (
+              <div className="shot-tabs" role="tablist">
+                {shots.map((s, i) => s && (
+                  <button
+                    key={i}
+                    type="button"
+                    role="tab"
+                    aria-selected={step === i + 1}
+                    className={step === i + 1 ? "on" : ""}
+                    onClick={() => { setStep(i + 1); setActive(null); }}
+                  >
+                    {i + 1}. {report.steps[i]?.label ?? `${i + 1}단계`}
+                  </button>
+                ))}
+              </div>
+            )}
+            {shot && (
+              <ShotView
+                shot={shot}
+                reasons={report.reasons.filter((r) => r.step_index === step)}
+                active={active}
+                scrollRef={scrollRef}
+              />
+            )}
+          </div>
+        )}
         <div className="reasons">
-          {report.reasons.map((r) => <ReasonCard key={r.rank} r={r} />)}
+          {report.reasons.map((r) => (
+            <ReasonCard
+              key={r.rank}
+              r={r}
+              active={active === r.rank}
+              onLocate={!isSample && pinned(r) ? () => locate(r) : undefined}
+            />
+          ))}
         </div>
       </div>
 
@@ -133,6 +246,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<Report | null>(null);
+  const [shots, setShots] = useState<(Shot | null)[]>([]);
+  const [runId, setRunId] = useState(0);
 
   const update = (i: number, key: keyof StepInput, value: string) =>
     setSteps((prev) => prev.map((s, j) => (j === i ? { ...s, [key]: value } : s)));
@@ -153,7 +268,9 @@ export default function Home() {
       });
       const data = await res.json().catch(() => ({ error: "서버 응답을 읽을 수 없어요." }));
       if (!res.ok) throw new Error(data.error ?? "진단에 실패했어요.");
+      setShots(data.captures ?? []);
       setReport(data.report);
+      setRunId((n) => n + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "진단에 실패했어요.");
     } finally {
@@ -262,7 +379,7 @@ export default function Home() {
 
       {report ? (
         <>
-          <ReportView report={report} isSample={false} />
+          <ReportView key={runId} report={report} isSample={false} shots={shots} />
           <button type="button" className="btn ghost" onClick={() => setReport(null)}>예시 리포트 다시 보기</button>
         </>
       ) : (

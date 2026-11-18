@@ -9,7 +9,9 @@ export const SAMPLE_REPORT: Report = {
   reasons: [
     {
       rank: 1,
+      step_index: 1,
       step_label: "요금제 선택",
+      element_id: "e1",
       principles: ["선택 과부하"],
       confidence: "high",
       problem: "요금제 4개가 같은 크기로 나란히 있고, 추천 표시가 없어요.",
@@ -19,7 +21,9 @@ export const SAMPLE_REPORT: Report = {
     },
     {
       rank: 2,
+      step_index: 1,
       step_label: "요금제 선택",
+      element_id: "e2",
       principles: ["손실 회피"],
       confidence: "high",
       problem: "\"첫 달 무료\"는 크게 보이는데, 이후 월 12,900원 자동결제는 아주 작게 적혀 있어요.",
@@ -29,7 +33,9 @@ export const SAMPLE_REPORT: Report = {
     },
     {
       rank: 3,
+      step_index: 1,
       step_label: "요금제 선택",
+      element_id: "e3",
       principles: ["불확실성 회피"],
       confidence: "mid",
       problem: "버튼 문구가 \"다음\"이라 누르면 무슨 일이 생기는지 알 수 없어요.",

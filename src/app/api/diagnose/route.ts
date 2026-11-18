@@ -2,7 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { extractPage, FetchPageError, type PageData } from "@/lib/extract";
+import { capturePage, type Capture } from "@/lib/capture";
+import { extractPage, FetchPageError, parseHtml, type PageData } from "@/lib/extract";
 import { SYSTEM_PROMPT } from "@/lib/rubric";
 import { ReportSchema } from "@/lib/schema";
 
@@ -51,6 +52,19 @@ function describePage(i: number, label: string | undefined, p: PageData): string
     .join("\n");
 }
 
+async function readStep(url: string): Promise<{ page: PageData; capture: Capture | null }> {
+  try {
+    const capture = await capturePage(url);
+    const page = parseHtml(capture.html, url, capture.finalUrl, capture.status);
+    return { page: { ...page, likelyClientRendered: false }, capture };
+  } catch (e) {
+    // 주소 자체가 막힌 경우는 그대로 알려주고, 브라우저 문제면 HTML만 읽는 방식으로 넘어가요.
+    if (e instanceof FetchPageError && /내부망|주소 형식|http 또는 https|도메인/.test(e.message)) throw e;
+    console.warn("[capture] 브라우저 캡처 실패, HTML만 읽어요:", (e as Error).message);
+    return { page: await extractPage(url), capture: null };
+  }
+}
+
 export async function POST(req: Request) {
   const parsed = RequestSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
@@ -65,18 +79,35 @@ export async function POST(req: Request) {
     );
   }
 
-  let pages: PageData[];
+  // 1순위: 실제 브라우저로 열어 스크린샷까지. 브라우저를 못 띄우는 환경이면 HTML만 읽어요.
+  let results: { page: PageData; capture: Capture | null }[];
   try {
-    pages = await Promise.all(steps.map((s) => extractPage(s.url.trim())));
+    results = await Promise.all(steps.map((s) => readStep(s.url.trim())));
   } catch (e) {
     if (e instanceof FetchPageError) return NextResponse.json({ error: e.message }, { status: 422 });
     throw e;
   }
 
-  const userContent =
-    `다음 ${pages.length}단계 플로우를 진단해주세요.\n\n` +
-    (context?.trim() ? `# 사용자가 적은 서비스 설명\n${context.trim()}\n\n` : "") +
-    pages.map((p, i) => describePage(i, steps[i].label, p)).join("\n\n---\n\n");
+  const content: Anthropic.Beta.Messages.BetaContentBlockParam[] = [
+    {
+      type: "text",
+      text:
+        `다음 ${results.length}단계 플로우를 진단해주세요.` +
+        (context?.trim() ? `\n\n# 사용자가 적은 서비스 설명\n${context.trim()}` : ""),
+    },
+  ];
+  results.forEach(({ page, capture }, i) => {
+    content.push({ type: "text", text: describePage(i, steps[i].label, page) });
+    if (capture) {
+      content.push({
+        type: "text",
+        text:
+          `${i + 1}단계 화면 요소 목록 (id 종류 "글자" @x,y 크기, 스크린샷 ${capture.width}x${capture.height}px 기준):\n` +
+          capture.elements.map((e) => `${e.id} ${e.kind} "${e.text}" @${e.x},${e.y} ${e.w}x${e.h}`).join("\n"),
+      });
+      content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: capture.image } });
+    }
+  });
 
   try {
     const response = await client.beta.messages.parse({
@@ -86,7 +117,7 @@ export async function POST(req: Request) {
       fallbacks: "default",
       output_config: { effort: "medium", format: betaZodOutputFormat(ReportSchema) },
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userContent }],
+      messages: [{ role: "user", content }],
     });
 
     if (response.stop_reason === "refusal") {
@@ -98,7 +129,17 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       report: response.parsed_output,
-      pages: pages.map((p) => ({ url: p.finalUrl, title: p.title, likelyClientRendered: p.likelyClientRendered })),
+      // 화면에 핀을 찍을 때 쓰는 스크린샷과 요소 위치예요. 캡처하지 못한 단계는 null이에요.
+      captures: results.map(({ capture }) =>
+        capture
+          ? {
+              image: `data:image/jpeg;base64,${capture.image}`,
+              width: capture.width,
+              height: capture.height,
+              elements: capture.elements.map(({ id, x, y, w, h }) => ({ id, x, y, w, h })),
+            }
+          : null,
+      ),
       usage: response.usage,
     });
   } catch (e) {

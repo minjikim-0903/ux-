@@ -23,7 +23,11 @@ export const ReportSchema = z.object({
     .array(
       z.object({
         rank: z.number().int(),
+        step_index: z.number().int().describe("이 문제가 있는 단계 번호. 1부터 시작"),
         step_label: z.string(),
+        element_id: z
+          .string()
+          .describe("문제가 있는 화면 요소의 id(예: e12). 요소 목록에서 가장 알맞은 것 하나. 화면 전체 문제이거나 알맞은 요소가 없으면 빈 문자열"),
         principles: z.array(z.string()).describe("행동심리 원리 1개. 예: 선택 과부하"),
         confidence: Confidence,
         problem: z

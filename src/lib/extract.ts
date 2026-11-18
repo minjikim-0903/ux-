@@ -37,7 +37,7 @@ export type PageData = {
 
 export class FetchPageError extends Error {}
 
-function isPrivateIp(ip: string): boolean {
+export function isPrivateIp(ip: string): boolean {
   if (net.isIPv4(ip)) {
     const [a, b] = ip.split(".").map(Number);
     return (
@@ -53,7 +53,7 @@ function isPrivateIp(ip: string): boolean {
   return v === "::1" || v === "::" || v.startsWith("fc") || v.startsWith("fd") || v.startsWith("fe80");
 }
 
-async function assertPublicUrl(raw: string): Promise<URL> {
+export async function assertPublicUrl(raw: string): Promise<URL> {
   let u: URL;
   try {
     u = new URL(raw);
@@ -83,7 +83,7 @@ async function fetchHtml(raw: string): Promise<{ html: string; finalUrl: string;
       redirect: "manual",
       signal: AbortSignal.timeout(TIMEOUT_MS),
       headers: {
-        "user-agent": "Mozilla/5.0 (compatible; MeomutBot/0.1)",
+        "user-agent": "Mozilla/5.0 (compatible; UXCheckBot/0.1)",
         "accept-language": "ko-KR,ko;q=0.9,en;q=0.8",
       },
     }).catch((e: Error) => {
@@ -108,6 +108,11 @@ const clean = (s: string) => s.replace(/\s+/g, " ").trim();
 
 export async function extractPage(url: string): Promise<PageData> {
   const { html, finalUrl, status } = await fetchHtml(url);
+  return parseHtml(html, url, finalUrl, status);
+}
+
+/** HTML 문자열에서 진단용 데이터를 뽑아요. 브라우저로 그린 HTML(capture.ts)에도 써요. */
+export function parseHtml(html: string, url: string, finalUrl: string, status: number): PageData {
   // 태그 앞에 공백을 넣어 요소 사이 글자가 붙지 않게 해요 ("기록모든" → "기록 모든")
   const $ = cheerio.load(html.replace(/</g, " <"));
   $("script, style, noscript, svg, template, iframe").remove();
