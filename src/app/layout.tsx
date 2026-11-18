@@ -6,8 +6,8 @@ const sans = IBM_Plex_Sans_KR({ variable: "--font-sans", weight: ["400", "500", 
 const mono = IBM_Plex_Mono({ variable: "--font-mono", weight: ["400", "500"], subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "머뭇 · 이탈 진단",
-  description: "URL을 넣으면 가입·결제 플로우의 이탈 이유를 행동심리 기준으로 진단해요.",
+  title: "UX 검증 리포트",
+  description: "AI로 만든 화면의 링크를 넣으면, 유저가 어디서 왜 망설이는지 진단하고 개선안을 제안해요.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

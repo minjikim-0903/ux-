@@ -14,6 +14,7 @@ const RequestSchema = z.object({
     .array(z.object({ url: z.string().min(1), label: z.string().optional() }))
     .min(1)
     .max(4),
+  context: z.string().max(1000).optional(),
 });
 
 const client = new Anthropic();
@@ -55,7 +56,7 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "URL을 1~4개 입력해주세요." }, { status: 400 });
   }
-  const { steps } = parsed.data;
+  const { steps, context } = parsed.data;
 
   if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) {
     return NextResponse.json(
@@ -74,6 +75,7 @@ export async function POST(req: Request) {
 
   const userContent =
     `다음 ${pages.length}단계 플로우를 진단해주세요.\n\n` +
+    (context?.trim() ? `# 사용자가 적은 서비스 설명\n${context.trim()}\n\n` : "") +
     pages.map((p, i) => describePage(i, steps[i].label, p)).join("\n\n---\n\n");
 
   try {
