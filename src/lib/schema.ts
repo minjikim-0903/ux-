@@ -3,7 +3,12 @@ import { z } from "zod";
 export const RiskLevel = z.enum(["low", "mid", "high"]);
 export const Confidence = z.enum(["high", "mid", "low"]);
 
+export const SiteCategory = z.enum(["normal", "gambling", "adult", "phishing", "illegal_goods", "other_harmful"]);
+
 export const ReportSchema = z.object({
+  site_category: SiteCategory.describe(
+    "사이트 종류. 불법 도박, 성인, 피싱·사기, 불법 상품(마약·무기·위조품 등), 기타 불법·유해면 해당 값. 일반 서비스는 normal",
+  ),
   verdict_headline: z
     .string()
     .describe("한 문장 결론. 예: '유저는 요금제를 고르다가 가장 많이 망설일 가능성이 높아요.'"),

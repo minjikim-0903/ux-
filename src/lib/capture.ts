@@ -98,6 +98,25 @@ async function getBrowser(): Promise<Browser> {
   return b;
 }
 
+// 미리보기로 찍은 화면을 진단할 때 다시 쓰려고 잠깐 보관해요 (같은 페이지를 두 번 찍지 않게).
+// API 경로마다 모듈이 따로 로드될 수 있어서 globalThis에 둬요.
+const CACHE_MS = 10 * 60_000;
+const CACHE_MAX = 20;
+const g = globalThis as typeof globalThis & { __captureCache?: Map<string, { at: number; capture: Promise<Capture> }> };
+const cache = (g.__captureCache ??= new Map());
+
+export function capturePageCached(url: string): Promise<Capture> {
+  const now = Date.now();
+  for (const [k, v] of cache) if (now - v.at > CACHE_MS) cache.delete(k);
+  const hit = cache.get(url);
+  if (hit) return hit.capture;
+  const capture = capturePage(url);
+  cache.set(url, { at: now, capture });
+  capture.catch(() => cache.delete(url)); // 실패한 건 보관하지 않아요
+  if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value!);
+  return capture;
+}
+
 export async function capturePage(url: string): Promise<Capture> {
   await assertPublicUrl(url);
   const browser = await getBrowser();

@@ -3,6 +3,7 @@ import type { Report } from "./schema";
 // API 키 없이 화면을 확인할 때 쓰는 예시 리포트예요. 가상 서비스(lumi-demo.kr)의 요금제 화면 기준이에요.
 // rank 번호는 예시 화면(SampleScreen)의 핀 번호와 같아요.
 export const SAMPLE_REPORT: Report = {
+  site_category: "normal",
   verdict_headline: "유저는 요금제를 고르다가 가장 많이 망설일 가능성이 높아요.",
   verdict_highlight: "요금제를 고르다가",
   steps: [{ label: "요금제 선택", url: "https://lumi-demo.kr/pricing", risk: "high" }],
