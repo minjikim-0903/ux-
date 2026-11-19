@@ -29,6 +29,7 @@ export default function Home() {
   const [shots, setShots] = useState<(Shot | null)[]>([]);
   const [runId, setRunId] = useState(0);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [remaining, setRemaining] = useState<number | null>(null); // 24시간 안에 남은 진단 횟수
 
   const update = (i: number, key: keyof StepInput, value: string) =>
     setSteps((prev) => prev.map((s, j) => (j === i ? { ...s, [key]: value } : s)));
@@ -54,6 +55,7 @@ export default function Home() {
         }),
       });
       const data = await res.json().catch(() => ({ error: "서버 응답을 읽을 수 없어요." }));
+      if (typeof data.remaining === "number") setRemaining(data.remaining);
       if (!res.ok) throw new Error(data.error ?? "진단에 실패했어요.");
       setShots(data.captures ?? []);
       setReport(data.report);
@@ -177,9 +179,12 @@ export default function Home() {
           >
             + 단계 추가 ({steps.length}/{MAX_STEPS})
           </button>
-          <button type="submit" className="btn primary" disabled={loading}>
-            {loading ? "진단 중…" : "진단하기"}
-          </button>
+          <div className="submit-wrap">
+            {remaining !== null && <span className="remaining">남은 진단 {remaining}회 · 24시간 기준</span>}
+            <button type="submit" className="btn primary" disabled={loading || remaining === 0}>
+              {loading ? "진단 중…" : "진단하기"}
+            </button>
+          </div>
         </div>
       </form>
 

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { capturePageCached, type Capture } from "@/lib/capture";
 import { extractPage, FetchPageError, parseHtml, type PageData } from "@/lib/extract";
 import { blockDomain, CATEGORY_TEXT, urlProblem } from "@/lib/guard";
+import { DIAGNOSE_LIMIT, formatRetry, takeDiagnoseSlot } from "@/lib/limits";
 import { SYSTEM_PROMPT } from "@/lib/rubric";
 import { DOMAINS, INFO_MAX } from "@/lib/service-info";
 import { type Report, ReportSchema } from "@/lib/schema";
@@ -180,6 +181,15 @@ export async function POST(req: Request) {
   const problem = await urlProblem(urls);
   if (problem) return NextResponse.json({ error: problem.error }, { status: problem.status });
 
+  // 횟수 제한: 링크 검사를 통과한 진단만 1회로 세요 (계정당 24시간 5회).
+  const slot = await takeDiagnoseSlot(user.id);
+  if (!slot.ok) {
+    return NextResponse.json(
+      { error: `24시간 동안 ${DIAGNOSE_LIMIT}회까지 진단할 수 있어요. ${formatRetry(slot.retryAt)}부터 다시 할 수 있어요.`, remaining: 0 },
+      { status: 429 },
+    );
+  }
+
   // 1순위: 실제 브라우저로 열어 스크린샷까지. 브라우저를 못 띄우는 환경이면 HTML만 읽어요.
   let results: StepResult[];
   try {
@@ -276,5 +286,6 @@ export async function POST(req: Request) {
         : null,
     ),
     usage,
+    remaining: slot.remaining, // 24시간 안에 남은 진단 횟수
   });
 }

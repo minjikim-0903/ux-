@@ -3,6 +3,7 @@ import { z } from "zod";
 import { capturePageCached } from "@/lib/capture";
 import { FetchPageError } from "@/lib/extract";
 import { urlProblem } from "@/lib/guard";
+import { ipOf, previewLimited } from "@/lib/limits";
 
 // 메인에서 "진단하기"를 누르면 입력한 링크의 화면을 미리 보여줘요.
 // 찍은 화면은 잠깐 보관했다가 진단할 때 다시 써요 (capturePageCached).
@@ -24,6 +25,10 @@ export async function POST(req: Request) {
   const parsed = BodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "링크를 입력해주세요." }, { status: 400 });
   const { url } = parsed.data;
+
+  if (previewLimited(ipOf(req))) {
+    return NextResponse.json({ error: "미리보기 요청이 너무 많아요. 잠시 후 다시 시도해주세요." }, { status: 429 });
+  }
 
   const problem = await urlProblem([url]);
   if (problem) return NextResponse.json({ error: problem.error }, { status: problem.status });

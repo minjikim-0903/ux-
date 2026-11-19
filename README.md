@@ -48,6 +48,7 @@ API 키 없이 화면만 보려면 메인에서 "예시 리포트 먼저 보기"
 | `src/app/api/diagnose/route.ts` | 화면 수집 → Claude 진단 → 리포트와 스크린샷 반환 |
 | `src/lib/capture.ts` | 실제 브라우저(Playwright)로 스크린샷과 화면 요소 위치를 가져와요. 페이지가 내부망으로 보내는 요청은 모두 막아요 |
 | `src/lib/extract.ts` | HTML에서 버튼, 입력 필드, 가격, 키워드, 본문을 뽑아요. 브라우저를 못 쓰면 이것만으로 진단해요 |
+| `src/lib/limits.ts` | 사용 횟수 제한: 익명 계정당 24시간 진단 5회(DB 함수 `take_diagnose_slot`), IP당 10분 미리보기 20회 |
 | `src/lib/guard.ts` | 불법·유해 사이트 차단 (차단 목록, Safe Browsing). AI 판별은 리포트의 `site_category` |
 | `src/lib/supabase/` | 브라우저용(익명 로그인)·서버용(관리자) Supabase 클라이언트 |
 | `supabase/migrations/` | DB 테이블(`diagnoses`, `blocked_domains`), 스크린샷 저장소, 본인만 보기 규칙(RLS) |
